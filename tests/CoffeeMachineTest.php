@@ -13,12 +13,6 @@ use App\ChangeMachineInterface;
 use Tests\CoffeeMachineMatchers;
 use Tests\Builders\CoffeeMachineTestBuilder;
 
-/**
- * Tests pour la machine à café utilisant le pattern Builder
- *
- * Cette classe se concentre sur la logique de test métier
- * tandis que la configuration est déléguée au Builder.
- */
 class CoffeeMachineTest extends TestCase
 {
     use CoffeeMachineMatchers;
