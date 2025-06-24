@@ -6,6 +6,7 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestDox;
 use App\CoinCode;
 use App\BrewerInterface;
 use App\ChangeMachineInterface;
@@ -19,26 +20,26 @@ class CoffeeMachineTest extends TestCase
     {
         $this->brewer = $this->createMock(BrewerInterface::class);
         $this->coinMachine = $this->createMock(ChangeMachineInterface::class);
-        echo "\n🔧 Setup: Machine à café initialisée avec brewer et change machine mockés\n";
     }
 
     #[DataProvider('validCoinProvider')]
+    #[TestDox('Test Brewer starts with valid coin')]
     public function testBrewerStartsWithValidCoin(CoinCode $coin): void
     {
-        echo "\n☕ TEST: Pièce valide ({$coin->value} cents)\n";
-        echo "ÉTANT DONNÉ une machine à café\n";
-        echo "QUAND on insère une pièce de {$coin->value} cents (≥ 50cts)\n";
+        // ETANT DONNE une machine a café
+        // QUAND on insère une pièce de 50cts ou plus
+        // ALORS le brewer reçoit l'ordre de faire un café
+        // CAS 50cts, 1€, 2€
+
+        $coinValue = $this->formatCoinValue($coin->value);
 
         $this->brewer->expects($this->once())
             ->method('makeACoffee')
             ->willReturn(true);
 
         if ($coin->value >= 50) {
-            echo "ALORS le brewer reçoit l'ordre de faire un café ✅\n";
             $this->brewer->makeACoffee();
         }
-
-        echo "✅ Test réussi pour {$coin->value} cents\n";
     }
 
     public static function validCoinProvider(): array
@@ -51,11 +52,16 @@ class CoffeeMachineTest extends TestCase
     }
 
     #[DataProvider('invalidCoinProvider')]
+    #[TestDox('Test Brewer not started with invalid coin')]
     public function testBrewerNotStartedWithInvalidCoin(CoinCode $coin): void
     {
-        echo "\n❌ TEST: Pièce invalide ({$coin->value} cents)\n";
-        echo "ÉTANT DONNÉ une machine à café\n";
-        echo "QUAND on insère une pièce de {$coin->value} cents (< 50cts)\n";
+        // ETANT DONNE une machine a café
+        // QUAND on insère une pièce moins de 50cts
+        // ALORS le brewer ne reçoit pas d'ordre
+        // ET l'argent est restitué
+        // CAS 1cts, 2cts, 5cts, 10cts, 20cts
+
+        $coinValue = $this->formatCoinValue($coin->value);
 
         $this->brewer->expects($this->never())
             ->method('makeACoffee');
@@ -64,12 +70,8 @@ class CoffeeMachineTest extends TestCase
             ->method('flushStoredMoney');
 
         if ($coin->value < 50) {
-            echo "ALORS le brewer ne reçoit pas d'ordre ❌\n";
-            echo "ET l'argent est restitué 💰\n";
             $this->coinMachine->flushStoredMoney();
         }
-
-        echo "✅ Test réussi pour {$coin->value} cents - argent restitué\n";
     }
 
     public static function invalidCoinProvider(): array
@@ -84,11 +86,14 @@ class CoffeeMachineTest extends TestCase
     }
 
     #[DataProvider('validCoinProvider')]
+    #[TestDox('Test Money refunded on machine failure')]
     public function testMoneyRefundedOnMachineFailure(CoinCode $coin): void
     {
-        echo "\n🔧 TEST: Machine défaillante avec pièce de {$coin->value} cents\n";
-        echo "ÉTANT DONNÉ une machine à café défaillante\n";
-        echo "QUAND on insère une pièce de {$coin->value} cents (≥ 50cts)\n";
+        // ETANT DONNE une machine a café défaillante
+        // QUAND on insère une pièce de 50cts ou plus
+        // ALORS l'argent est restitué
+
+        $coinValue = $this->formatCoinValue($coin->value);
 
         $this->brewer->expects($this->once())
             ->method('makeACoffee')
@@ -98,51 +103,53 @@ class CoffeeMachineTest extends TestCase
             ->method('flushStoredMoney');
 
         if ($coin->value >= 50) {
-            echo "Le brewer tente de faire un café... ☕\n";
             $success = $this->brewer->makeACoffee();
             if (!$success) {
-                echo "ALORS l'argent est restitué (machine défaillante) 💰❌\n";
                 $this->coinMachine->flushStoredMoney();
             }
         }
-
-        echo "✅ Test réussi - argent restitué suite à défaillance\n";
     }
 
+    #[TestDox('Test No action without coin')]
     public function testNoActionWithoutCoin(): void
     {
-        echo "\n⭕ TEST: Aucune pièce insérée\n";
-        echo "ÉTANT DONNÉ une machine à café\n";
-        echo "QUAND aucune pièce n'est insérée\n";
-        echo "ALORS le brewer ne reçoit pas d'ordre ❌\n";
-        echo "ET aucun argent n'est restitué\n";
+        // ETANT DONNE une machine a café
+        // ALORS le brewer ne reçoit pas d'ordre
 
         $this->brewer->expects($this->never())
             ->method('makeACoffee');
 
         $this->coinMachine->expects($this->never())
             ->method('flushStoredMoney');
-
-        echo "✅ Test réussi - aucune action sans pièce\n";
     }
 
+    #[TestDox('Test Two valid coins trigger two coffees')]
     public function testTwoValidCoinsTriggerTwoCoffees(): void
     {
-        echo "\n☕☕ TEST: Deux pièces de 50cts\n";
-        echo "ÉTANT DONNÉ une machine à café\n";
-        echo "QUAND on insère une pièce de 50cts deux fois\n";
-        echo "ALORS le brewer reçoit deux fois l'ordre de faire un café\n";
+        // ETANT DONNE une machine a café
+        // QUAND on insère une pièce de 50cts deux fois
+        // ALORS le brewer reçoit deux fois l'ordre de faire un café
 
         $this->brewer->expects($this->exactly(2))
             ->method('makeACoffee')
             ->willReturn(true);
 
-        echo "Insertion première pièce... ☕\n";
         $this->brewer->makeACoffee();
-
-        echo "Insertion deuxième pièce... ☕\n";
         $this->brewer->makeACoffee();
+    }
 
-        echo "✅ Test réussi - deux cafés commandés\n";
+    private function formatCoinValue(int $value): string
+    {
+        return match ($value) {
+            1 => '1 centime',
+            2 => '2 centimes',
+            5 => '5 centimes',
+            10 => '10 centimes',
+            20 => '20 centimes',
+            50 => '50 centimes',
+            100 => '1 euro',
+            200 => '2 euros',
+            default => $value . ' centimes'
+        };
     }
 }
