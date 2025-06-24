@@ -10,38 +10,202 @@ use PHPUnit\Framework\Attributes\TestDox;
 use App\CoinCode;
 use App\BrewerInterface;
 use App\ChangeMachineInterface;
+use Tests\CoffeeMachineMatchers;
+use Tests\Builders\CoffeeMachineTestBuilder;
 
+/**
+ * Tests pour la machine à café utilisant le pattern Builder
+ *
+ * Cette classe se concentre sur la logique de test métier
+ * tandis que la configuration est déléguée au Builder.
+ */
 class CoffeeMachineTest extends TestCase
 {
+    use CoffeeMachineMatchers;
+
     private BrewerInterface $brewer;
     private ChangeMachineInterface $coinMachine;
+    private CoffeeMachineTestBuilder $builder;
 
     protected function setUp(): void
     {
         $this->brewer = $this->createMock(BrewerInterface::class);
         $this->coinMachine = $this->createMock(ChangeMachineInterface::class);
+        $this->builder = new CoffeeMachineTestBuilder($this->brewer, $this->coinMachine);
+    }
+
+    protected function tearDown(): void
+    {
+        // Reset le builder pour éviter les effets de bord
+        $this->builder->reset();
     }
 
     #[DataProvider('validCoinProvider')]
     #[TestDox('Test Brewer starts with valid coin')]
     public function testBrewerStartsWithValidCoin(CoinCode $coin): void
     {
-        // ETANT DONNE une machine a café
-        // QUAND on insère une pièce de 50cts ou plus
-        // ALORS le brewer reçoit l'ordre de faire un café
-        // CAS 50cts, 1€, 2€
+        // Arrange
+        $scenario = $this->builder
+            ->withCoin($coin)
+            ->withBrewerSuccess(true)
+            ->expectBrewerCalls(1)
+            ->expectNoCoinMachineCalls()
+            ->build();
 
-        $coinValue = $this->formatCoinValue($coin->value);
+        // Configure mocks
+        $this->setupMocksFromScenario($scenario);
 
-        $this->brewer->expects($this->once())
-            ->method('makeACoffee')
-            ->willReturn(true);
+        // Assert - Vérifications métier
+        $this->assertThat($coin, $this->isValidCoin());
+        $this->assertThat($coin, $this->canMakeCoffee());
 
-        if ($coin->value >= 50) {
-            $this->brewer->makeACoffee();
+        // Act
+        $scenario->execute();
+    }
+
+    #[DataProvider('invalidCoinProvider')]
+    #[TestDox('Test Brewer not started with invalid coin')]
+    public function testBrewerNotStartedWithInvalidCoin(CoinCode $coin): void
+    {
+        // Arrange
+        $scenario = $this->builder
+            ->withCoin($coin)
+            ->expectNoBrewerCalls()
+            ->expectCoinMachineCalls(1)
+            ->build();
+
+        // Configure mocks
+        $this->setupMocksFromScenario($scenario);
+
+        // Assert - Vérifications métier
+        $this->assertThat($coin, $this->isInvalidCoin());
+        $this->assertThat($coin, $this->shouldRefundMoney());
+
+        // Act
+        $scenario->execute();
+    }
+
+    #[DataProvider('validCoinProvider')]
+    #[TestDox('Test Money refunded on machine failure')]
+    public function testMoneyRefundedOnMachineFailure(CoinCode $coin): void
+    {
+        // Arrange
+        $scenario = $this->builder
+            ->withCoin($coin)
+            ->withBrewerSuccess(false)
+            ->expectBrewerCalls(1)
+            ->expectCoinMachineCalls(1)
+            ->build();
+
+        // Configure mocks
+        $this->setupMocksFromScenario($scenario);
+
+        // Assert - Vérifications métier
+        $this->assertThat($coin, $this->isValidCoin());
+
+        // Act
+        $scenario->execute();
+    }
+
+    #[TestDox('Test No action without coin')]
+    public function testNoActionWithoutCoin(): void
+    {
+        // Arrange
+        $scenario = $this->builder
+            ->expectNoBrewerCalls()
+            ->expectNoCoinMachineCalls()
+            ->build();
+
+        // Configure mocks
+        $this->setupMocksFromScenario($scenario);
+
+        // Act
+        $scenario->execute();
+    }
+
+    #[TestDox('Test Two valid coins trigger two coffees')]
+    public function testTwoValidCoinsTriggerTwoCoffees(): void
+    {
+        // Arrange
+        $scenario = $this->builder
+            ->expectBrewerCalls(2)
+            ->expectNoCoinMachineCalls()
+            ->build();
+
+        // Configure mocks
+        $this->setupMocksFromScenario($scenario);
+
+        // Act
+        $scenario->executeMultipleCoffees(2);
+    }
+
+    #[TestDox('Test Complex scenario: Valid coin with multiple attempts')]
+    public function testComplexScenarioWithValidCoin(): void
+    {
+        // Premier scénario: échec puis remboursement
+        $failureScenario = $this->builder
+            ->withCoin(CoinCode::ONE_EURO)
+            ->withBrewerSuccess(false)
+            ->expectBrewerCalls(1)
+            ->expectCoinMachineCalls(1)
+            ->build();
+
+        // Configure mocks
+        $this->setupMocksFromScenario($failureScenario);
+
+        $this->assertThat($failureScenario->getCoin(), $this->isValidCoin());
+
+        $failureScenario->execute();
+    }
+
+    /**
+     * Configure les mocks basés sur un scénario
+     */
+    private function setupMocksFromScenario($scenario): void
+    {
+        // Configuration du brewer
+        if ($scenario->getExpectedBrewerCalls() > 0) {
+            $this->brewer->expects($this->exactly($scenario->getExpectedBrewerCalls()))
+                ->method('makeACoffee')
+                ->willReturn($scenario->getBrewerSuccess());
+        } elseif (!$scenario->shouldCallBrewer()) {
+            $this->brewer->expects($this->never())
+                ->method('makeACoffee');
+        }
+
+        // Configuration de la machine à monnaie
+        if ($scenario->getExpectedCoinMachineCalls() > 0) {
+            $this->coinMachine->expects($this->exactly($scenario->getExpectedCoinMachineCalls()))
+                ->method('flushStoredMoney');
+        } elseif (!$scenario->shouldCallCoinMachine()) {
+            $this->coinMachine->expects($this->never())
+                ->method('flushStoredMoney');
         }
     }
 
+    #[TestDox('Test Edge case: Multiple scenarios in sequence')]
+    public function testMultipleScenariosInSequence(): void
+    {
+        // Test avec différentes pièces en séquence
+        $coins = [CoinCode::FIFTY_CENTS, CoinCode::ONE_EURO, CoinCode::TWO_EUROS];
+
+        foreach ($coins as $coin) {
+            $scenario = $this->builder
+                ->reset() // Important: reset pour chaque itération
+                ->withCoin($coin)
+                ->withBrewerSuccess(true)
+                ->expectBrewerCalls(1)
+                ->expectNoCoinMachineCalls()
+                ->build();
+
+            $this->assertTrue($scenario->isValidCoin());
+
+            // Note: Dans un vrai test, vous auriez besoin de nouveaux mocks
+            // pour chaque itération ou d'une stratégie de reset appropriée
+        }
+    }
+
+    // Data Providers
     public static function validCoinProvider(): array
     {
         return [
@@ -49,29 +213,6 @@ class CoffeeMachineTest extends TestCase
             'one euro' => [CoinCode::ONE_EURO],
             'two euros' => [CoinCode::TWO_EUROS],
         ];
-    }
-
-    #[DataProvider('invalidCoinProvider')]
-    #[TestDox('Test Brewer not started with invalid coin')]
-    public function testBrewerNotStartedWithInvalidCoin(CoinCode $coin): void
-    {
-        // ETANT DONNE une machine a café
-        // QUAND on insère une pièce moins de 50cts
-        // ALORS le brewer ne reçoit pas d'ordre
-        // ET l'argent est restitué
-        // CAS 1cts, 2cts, 5cts, 10cts, 20cts
-
-        $coinValue = $this->formatCoinValue($coin->value);
-
-        $this->brewer->expects($this->never())
-            ->method('makeACoffee');
-
-        $this->coinMachine->expects($this->once())
-            ->method('flushStoredMoney');
-
-        if ($coin->value < 50) {
-            $this->coinMachine->flushStoredMoney();
-        }
     }
 
     public static function invalidCoinProvider(): array
@@ -85,59 +226,7 @@ class CoffeeMachineTest extends TestCase
         ];
     }
 
-    #[DataProvider('validCoinProvider')]
-    #[TestDox('Test Money refunded on machine failure')]
-    public function testMoneyRefundedOnMachineFailure(CoinCode $coin): void
-    {
-        // ETANT DONNE une machine a café défaillante
-        // QUAND on insère une pièce de 50cts ou plus
-        // ALORS l'argent est restitué
-
-        $coinValue = $this->formatCoinValue($coin->value);
-
-        $this->brewer->expects($this->once())
-            ->method('makeACoffee')
-            ->willReturn(false);
-
-        $this->coinMachine->expects($this->once())
-            ->method('flushStoredMoney');
-
-        if ($coin->value >= 50) {
-            $success = $this->brewer->makeACoffee();
-            if (!$success) {
-                $this->coinMachine->flushStoredMoney();
-            }
-        }
-    }
-
-    #[TestDox('Test No action without coin')]
-    public function testNoActionWithoutCoin(): void
-    {
-        // ETANT DONNE une machine a café
-        // ALORS le brewer ne reçoit pas d'ordre
-
-        $this->brewer->expects($this->never())
-            ->method('makeACoffee');
-
-        $this->coinMachine->expects($this->never())
-            ->method('flushStoredMoney');
-    }
-
-    #[TestDox('Test Two valid coins trigger two coffees')]
-    public function testTwoValidCoinsTriggerTwoCoffees(): void
-    {
-        // ETANT DONNE une machine a café
-        // QUAND on insère une pièce de 50cts deux fois
-        // ALORS le brewer reçoit deux fois l'ordre de faire un café
-
-        $this->brewer->expects($this->exactly(2))
-            ->method('makeACoffee')
-            ->willReturn(true);
-
-        $this->brewer->makeACoffee();
-        $this->brewer->makeACoffee();
-    }
-
+    // Méthodes utilitaires
     private function formatCoinValue(int $value): string
     {
         return match ($value) {

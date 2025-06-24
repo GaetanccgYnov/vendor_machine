@@ -18,7 +18,6 @@ composer install
 Exécute les tests PHPUnit avec la commande suivante :
 
 ```bash
-./vendor/bin/phpunit tests/CoffeeMachineTest.php
 ./vendor/bin/phpunit --testdox tests/CoffeeMachineTest.php
 ```
 
