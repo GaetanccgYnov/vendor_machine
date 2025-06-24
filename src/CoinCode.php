@@ -1,4 +1,5 @@
 <?php
+namespace App;
 
 enum CoinCode: int
 {
