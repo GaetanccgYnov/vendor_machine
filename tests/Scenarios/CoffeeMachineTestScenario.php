@@ -7,6 +7,7 @@ namespace Tests\Scenarios;
 use App\CoinCode;
 use App\BrewerInterface;
 use App\ChangeMachineInterface;
+use App\CardHandleInterface;
 use App\PaymentMethod;
 
 /**
@@ -17,17 +18,24 @@ use App\PaymentMethod;
  */
 class CoffeeMachineTestScenario
 {
+    private const COFFEE_PRICE_CENTS = 50;
+
     public function __construct(
         private BrewerInterface $brewer,
         private ChangeMachineInterface $coinMachine,
+        private CardHandleInterface $cardHandler,
         private ?CoinCode $coin,
         private bool $brewerSuccess,
         private int $expectedBrewerCalls,
         private int $expectedCoinMachineCalls,
+        private int $expectedCardChargeCalls,
+        private int $expectedCardRefundCalls,
         private bool $shouldCallBrewer,
         private bool $shouldCallCoinMachine,
+        private bool $shouldCallCardCharge,
+        private bool $shouldCallCardRefund,
         private ?PaymentMethod $paymentMethod = null,
-        private bool $cardAccepted = false
+        private bool $cardChargeSuccess = false
     ) {}
 
     /**
@@ -36,9 +44,7 @@ class CoffeeMachineTestScenario
     public function execute(): void
     {
         if ($this->paymentMethod === PaymentMethod::CARD) {
-            if ($this->cardAccepted && $this->shouldCallBrewer) {
-                $this->brewer->makeACoffee();
-            }
+            $this->handleCardPayment();
             return;
         }
 
@@ -96,6 +102,22 @@ class CoffeeMachineTestScenario
     }
 
     /**
+     * Retourne le nombre d'appels attendus pour le prélèvement carte
+     */
+    public function getExpectedCardChargeCalls(): int
+    {
+        return $this->expectedCardChargeCalls;
+    }
+
+    /**
+     * Retourne le nombre d'appels attendus pour le remboursement carte
+     */
+    public function getExpectedCardRefundCalls(): int
+    {
+        return $this->expectedCardRefundCalls;
+    }
+
+    /**
      * Indique si le brewer doit être appelé
      */
     public function shouldCallBrewer(): bool
@@ -112,11 +134,57 @@ class CoffeeMachineTestScenario
     }
 
     /**
+     * Indique si le prélèvement carte doit être appelé
+     */
+    public function shouldCallCardCharge(): bool
+    {
+        return $this->shouldCallCardCharge;
+    }
+
+    /**
+     * Indique si le remboursement carte doit être appelé
+     */
+    public function shouldCallCardRefund(): bool
+    {
+        return $this->shouldCallCardRefund;
+    }
+
+    /**
      * Retourne le résultat attendu du brewer
      */
     public function getBrewerSuccess(): bool
     {
         return $this->brewerSuccess;
+    }
+
+    /**
+     * Retourne le résultat attendu du prélèvement carte
+     */
+    public function getCardChargeSuccess(): bool
+    {
+        return $this->cardChargeSuccess;
+    }
+
+    /**
+     * Gère le paiement par carte
+     */
+    private function handleCardPayment(): void
+    {
+        // Tentative de prélèvement
+        $chargeSuccess = $this->cardHandler->tryChargeAmount(self::COFFEE_PRICE_CENTS);
+
+        if (!$chargeSuccess) {
+            // Prélèvement échoué, pas de café
+            return;
+        }
+
+        // Prélèvement réussi, tentative de café
+        $coffeeSuccess = $this->brewer->makeACoffee();
+
+        if (!$coffeeSuccess) {
+            // Café échoué, remboursement
+            $this->cardHandler->refund(self::COFFEE_PRICE_CENTS);
+        }
     }
 
     /**

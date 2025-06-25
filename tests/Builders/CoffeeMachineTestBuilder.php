@@ -7,6 +7,7 @@ namespace Tests\Builders;
 use App\CoinCode;
 use App\BrewerInterface;
 use App\ChangeMachineInterface;
+use App\CardHandleInterface;
 use Tests\Scenarios\CoffeeMachineTestScenario;
 use App\PaymentMethod;
 
@@ -20,28 +21,38 @@ class CoffeeMachineTestBuilder
 {
     private BrewerInterface $brewer;
     private ChangeMachineInterface $coinMachine;
+    private CardHandleInterface $cardHandler;
     private ?CoinCode $coin = null;
     private bool $brewerSuccess = true;
     private int $expectedBrewerCalls = 0;
     private int $expectedCoinMachineCalls = 0;
+    private int $expectedCardChargeCalls = 0;
+    private int $expectedCardRefundCalls = 0;
     private bool $shouldCallBrewer = false;
     private bool $shouldCallCoinMachine = false;
+    private bool $shouldCallCardCharge = false;
+    private bool $shouldCallCardRefund = false;
     private ?PaymentMethod $paymentMethod = null;
-    private bool $cardAccepted = false;
+    private bool $cardChargeSuccess = false;
 
-    public function __construct(BrewerInterface $brewer, ChangeMachineInterface $coinMachine)
-    {
+    public function __construct(
+        BrewerInterface $brewer,
+        ChangeMachineInterface $coinMachine,
+        CardHandleInterface $cardHandler
+    ) {
         $this->brewer = $brewer;
         $this->coinMachine = $coinMachine;
+        $this->cardHandler = $cardHandler;
     }
 
     /**
-     * Définit le mode de paiement à utiliser dans le test
+     * Définit le mode de paiement par carte
      */
-    public function withCardPayment(bool $accepted): self
+    public function withCardPayment(bool $chargeSuccess): self
     {
         $this->paymentMethod = PaymentMethod::CARD;
-        $this->cardAccepted = $accepted;
+        $this->cardChargeSuccess = $chargeSuccess;
+        $this->coin = null; // Reset coin si on utilise la carte
         return $this;
     }
 
@@ -51,6 +62,7 @@ class CoffeeMachineTestBuilder
     public function withCoin(CoinCode $coin): self
     {
         $this->coin = $coin;
+        $this->paymentMethod = null; // Reset payment method si on utilise des pièces
         return $this;
     }
 
@@ -84,6 +96,26 @@ class CoffeeMachineTestBuilder
     }
 
     /**
+     * Définit le nombre d'appels attendus pour le prélèvement carte
+     */
+    public function expectCardChargeCalls(int $times): self
+    {
+        $this->expectedCardChargeCalls = $times;
+        $this->shouldCallCardCharge = $times > 0;
+        return $this;
+    }
+
+    /**
+     * Définit le nombre d'appels attendus pour le remboursement carte
+     */
+    public function expectCardRefundCalls(int $times): self
+    {
+        $this->expectedCardRefundCalls = $times;
+        $this->shouldCallCardRefund = $times > 0;
+        return $this;
+    }
+
+    /**
      * Indique qu'aucun appel au brewer n'est attendu
      */
     public function expectNoBrewerCalls(): self
@@ -104,6 +136,34 @@ class CoffeeMachineTestBuilder
     }
 
     /**
+     * Indique qu'aucun appel de prélèvement carte n'est attendu
+     */
+    public function expectNoCardChargeCalls(): self
+    {
+        $this->expectedCardChargeCalls = 0;
+        $this->shouldCallCardCharge = false;
+        return $this;
+    }
+
+    /**
+     * Indique qu'aucun appel de remboursement carte n'est attendu
+     */
+    public function expectNoCardRefundCalls(): self
+    {
+        $this->expectedCardRefundCalls = 0;
+        $this->shouldCallCardRefund = false;
+        return $this;
+    }
+
+    /**
+     * Indique qu'aucun appel lié à la carte n'est attendu
+     */
+    public function expectNoCardCalls(): self
+    {
+        return $this->expectNoCardChargeCalls()->expectNoCardRefundCalls();
+    }
+
+    /**
      * Construit le scénario de test final
      */
     public function build(): CoffeeMachineTestScenario
@@ -111,14 +171,19 @@ class CoffeeMachineTestBuilder
         return new CoffeeMachineTestScenario(
             $this->brewer,
             $this->coinMachine,
+            $this->cardHandler,
             $this->coin,
             $this->brewerSuccess,
             $this->expectedBrewerCalls,
             $this->expectedCoinMachineCalls,
+            $this->expectedCardChargeCalls,
+            $this->expectedCardRefundCalls,
             $this->shouldCallBrewer,
             $this->shouldCallCoinMachine,
+            $this->shouldCallCardCharge,
+            $this->shouldCallCardRefund,
             $this->paymentMethod,
-            $this->cardAccepted
+            $this->cardChargeSuccess
         );
     }
 
@@ -131,8 +196,14 @@ class CoffeeMachineTestBuilder
         $this->brewerSuccess = true;
         $this->expectedBrewerCalls = 0;
         $this->expectedCoinMachineCalls = 0;
+        $this->expectedCardChargeCalls = 0;
+        $this->expectedCardRefundCalls = 0;
         $this->shouldCallBrewer = false;
         $this->shouldCallCoinMachine = false;
+        $this->shouldCallCardCharge = false;
+        $this->shouldCallCardRefund = false;
+        $this->paymentMethod = null;
+        $this->cardChargeSuccess = false;
 
         return $this;
     }
