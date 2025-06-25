@@ -1,1 +1,19 @@
-/vendor
+# Fichiers système
+*.DS_Store
+Thumbs.db
+
+# Logs et fichiers temporaires
+*.log
+*.cache
+*.tmp
+
+# Dépendances Composer
+/vendor/
+
+# Fichiers de configuration
+.env
+*.ini
+
+# Fichiers IDE
+.idea/
+*.iml
