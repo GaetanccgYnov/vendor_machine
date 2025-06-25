@@ -35,8 +35,6 @@ Pièce multiple = paiement en pls fois. Max 5 pièces, si on mets +5 on rends to
 ## Cas de test
 Paiement CB
 // D'abord choisir le café ou passer la carte et choisir le café ? reset après chaque café
-// Si pls cafés, on demande le paiement CB pour tous ou un par un ? si un paiement passe pas on annule tous ou juste ceux qui ne passent pas ?
-// Si il passe sa carte et mets sa pièce ? on peut pas
 // Si le paiement CB passe pas ? on annule la commande
 // 
 ETANT DONNE une machine a café
