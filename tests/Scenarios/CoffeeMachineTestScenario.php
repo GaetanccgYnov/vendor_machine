@@ -7,6 +7,7 @@ namespace Tests\Scenarios;
 use App\CoinCode;
 use App\BrewerInterface;
 use App\ChangeMachineInterface;
+use App\PaymentMethod;
 
 /**
  * Scénario de test configuré par le Builder
@@ -24,7 +25,9 @@ class CoffeeMachineTestScenario
         private int $expectedBrewerCalls,
         private int $expectedCoinMachineCalls,
         private bool $shouldCallBrewer,
-        private bool $shouldCallCoinMachine
+        private bool $shouldCallCoinMachine,
+        private ?PaymentMethod $paymentMethod = null,
+        private bool $cardAccepted = false
     ) {}
 
     /**
@@ -32,6 +35,13 @@ class CoffeeMachineTestScenario
      */
     public function execute(): void
     {
+        if ($this->paymentMethod === PaymentMethod::CARD) {
+            if ($this->cardAccepted && $this->shouldCallBrewer) {
+                $this->brewer->makeACoffee();
+            }
+            return;
+        }
+
         if ($this->coin === null) {
             return; // Pas de pièce, pas d'action
         }

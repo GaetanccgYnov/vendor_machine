@@ -152,12 +152,8 @@ class CoffeeMachineTest extends TestCase
         $failureScenario->execute();
     }
 
-    /**
-     * Configure les mocks basés sur un scénario
-     */
     private function setupMocksFromScenario($scenario): void
     {
-        // Configuration du brewer
         if ($scenario->getExpectedBrewerCalls() > 0) {
             $this->brewer->expects($this->exactly($scenario->getExpectedBrewerCalls()))
                 ->method('makeACoffee')
@@ -167,7 +163,6 @@ class CoffeeMachineTest extends TestCase
                 ->method('makeACoffee');
         }
 
-        // Configuration de la machine à monnaie
         if ($scenario->getExpectedCoinMachineCalls() > 0) {
             $this->coinMachine->expects($this->exactly($scenario->getExpectedCoinMachineCalls()))
                 ->method('flushStoredMoney');
@@ -193,10 +188,51 @@ class CoffeeMachineTest extends TestCase
                 ->build();
 
             $this->assertTrue($scenario->isValidCoin());
-
-            // Note: Dans un vrai test, vous auriez besoin de nouveaux mocks
-            // pour chaque itération ou d'une stratégie de reset appropriée
         }
+    }
+
+    #[TestDox('CB acceptée → café lancé')]
+    public function testCardAcceptedStartsBrewer(): void
+    {
+        $scenario = $this->builder
+            ->withCardPayment(true)
+            ->withBrewerSuccess(true)
+            ->expectBrewerCalls(1)
+            ->expectNoCoinMachineCalls()
+            ->build();
+
+        $this->setupMocksFromScenario($scenario);
+
+        $scenario->execute();
+    }
+
+    #[TestDox('CB refusée → aucun ordre envoyé')]
+    public function testCardRefusedDoesNothing(): void
+    {
+        $scenario = $this->builder
+            ->withCardPayment(false)
+            ->expectNoBrewerCalls()
+            ->expectNoCoinMachineCalls()
+            ->build();
+
+        $this->setupMocksFromScenario($scenario);
+
+        $scenario->execute();
+    }
+
+    #[TestDox('CB acceptée mais café indisponible → remboursement')]
+    public function testCardAcceptedButCoffeeUnavailableRefunds(): void
+    {
+        $scenario = $this->builder
+            ->withCardPayment(true)
+            ->withBrewerSuccess(false)
+            ->expectBrewerCalls(1)
+            ->expectNoCoinMachineCalls()
+            ->build();
+
+        $this->setupMocksFromScenario($scenario);
+
+        $scenario->execute();
     }
 
     // Data Providers

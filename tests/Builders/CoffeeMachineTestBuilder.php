@@ -8,6 +8,7 @@ use App\CoinCode;
 use App\BrewerInterface;
 use App\ChangeMachineInterface;
 use Tests\Scenarios\CoffeeMachineTestScenario;
+use App\PaymentMethod;
 
 /**
  * Builder pour configurer les tests de machine à café
@@ -25,11 +26,23 @@ class CoffeeMachineTestBuilder
     private int $expectedCoinMachineCalls = 0;
     private bool $shouldCallBrewer = false;
     private bool $shouldCallCoinMachine = false;
+    private ?PaymentMethod $paymentMethod = null;
+    private bool $cardAccepted = false;
 
     public function __construct(BrewerInterface $brewer, ChangeMachineInterface $coinMachine)
     {
         $this->brewer = $brewer;
         $this->coinMachine = $coinMachine;
+    }
+
+    /**
+     * Définit le mode de paiement à utiliser dans le test
+     */
+    public function withCardPayment(bool $accepted): self
+    {
+        $this->paymentMethod = PaymentMethod::CARD;
+        $this->cardAccepted = $accepted;
+        return $this;
     }
 
     /**
@@ -103,7 +116,9 @@ class CoffeeMachineTestBuilder
             $this->expectedBrewerCalls,
             $this->expectedCoinMachineCalls,
             $this->shouldCallBrewer,
-            $this->shouldCallCoinMachine
+            $this->shouldCallCoinMachine,
+            $this->paymentMethod,
+            $this->cardAccepted
         );
     }
 
