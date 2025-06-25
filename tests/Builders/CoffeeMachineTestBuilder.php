@@ -34,6 +34,7 @@ class CoffeeMachineTestBuilder
     private bool $shouldCallCardRefund = false;
     private ?PaymentMethod $paymentMethod = null;
     private bool $cardChargeSuccess = false;
+    private int $toManyCoins = 0;
 
     public function __construct(
         BrewerInterface $brewer,
@@ -164,6 +165,15 @@ class CoffeeMachineTestBuilder
     }
 
     /**
+     *  Définit le nombre de pièces à insérer
+     */
+    public function withCoinInsertion(int $times): self
+    {
+        $this->toManyCoins = $times;
+        return $this;
+    }
+
+    /**
      * Construit le scénario de test final
      */
     public function build(): CoffeeMachineTestScenario
@@ -183,7 +193,8 @@ class CoffeeMachineTestBuilder
             $this->shouldCallCardCharge,
             $this->shouldCallCardRefund,
             $this->paymentMethod,
-            $this->cardChargeSuccess
+            $this->cardChargeSuccess,
+            $this->toManyCoins
         );
     }
 

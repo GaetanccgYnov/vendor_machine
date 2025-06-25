@@ -272,6 +272,21 @@ class CoffeeMachineTest extends TestCase
             $scenario->execute();
     }
 
+    #[TestDox('Test Coin: More than 5 coins in machine')]
+    public function testMoreThanFiveCoins(): void
+    {
+        // Arrange
+        $scenario = $this->builder
+            ->withCoinInsertion(6)
+            ->build();
+        
+        // Configure mocks
+        $this->setupMocksFromScenario($scenario);
+
+        // Act
+        $scenario->execute();
+    }
+
     private function setupMocksFromScenario($scenario): void
     {
         // Brewer configuration
