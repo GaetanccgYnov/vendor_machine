@@ -277,9 +277,13 @@ class CoffeeMachineTest extends TestCase
     {
         // Arrange
         $scenario = $this->builder
+            ->withCoin(CoinCode::FIFTY_CENTS)
             ->withCoinInsertion(6)
+            ->expectCoinMachineCalls(1)
+            ->expectNoBrewerCalls()
+            ->expectNoCardCalls()
             ->build();
-        
+
         // Configure mocks
         $this->setupMocksFromScenario($scenario);
 
@@ -289,6 +293,18 @@ class CoffeeMachineTest extends TestCase
 
     private function setupMocksFromScenario($scenario): void
     {
+        // If no coin or card payment, do nothing
+        if ($scenario->getToManyCoins() > 5) {
+            $this->brewer
+                ->expects($this->never())
+                ->method('makeACoffee');
+
+            $this->coinMachine
+                ->expects($this->once())
+                ->method('flushStoredMoney');
+            return;
+        }
+
         // Brewer configuration
         if ($scenario->getExpectedBrewerCalls() > 0) {
             $this->brewer->expects($this->exactly($scenario->getExpectedBrewerCalls()))
