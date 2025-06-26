@@ -1,37 +1,43 @@
 <?php
+
+declare(strict_types=1);
+
 namespace App;
 
 interface ChangeMachineInterface
 {
     /**
-     * Enregistre un callback, appelé lors de l'insertion d'une pièce reconnue comme valide.
-     * Attention : si le monnayeur est physiquement plein (plus de 5 pièces), cette méthode n'est plus invoquée.
-     * Il est de la responsabilité du logiciel de surveiller cela.
-     *
-     * @param callable|null $callback Callback prenant en paramètre la valeur de la pièce détectée.
-     * @return void
-     */
-    public function registerMoneyInsertedCallback(?callable $callback): void;
-
-    /**
-     * Vide le monnayeur et rend l'argent.
-     *
-     * @return void
+     * Vide l'argent stocké (remboursement)
      */
     public function flushStoredMoney(): void;
 
     /**
-     * Vide le monnayeur et encaisse l'argent.
-     *
-     * @return void
+     * Retourne le stock actuel de pièces
+     * @return array<CoinCode, int> Stock par type de pièce
      */
-    public function collectStoredMoney(): void;
+    public function getCurrentStock(): array;
 
     /**
-     * Fait tomber une pièce depuis le stock vers la trappe à monnaie.
-     *
-     * @param CoinCode $coinCode La pièce à restituer.
-     * @return bool True si la pièce était disponible, False sinon.
+     * Vérifie si on peut rendre la monnaie demandée avec le stock disponible
      */
-    public function dropCashback(CoinCode $coinCode): bool;
+    public function canMakeChange(int $changeAmount, array $currentStock): bool;
+
+    /**
+     * Rend la monnaie avec les pièces spécifiées
+     * @param CoinCode[] $changeCoins Pièces à rendre
+     */
+    public function returnChange(array $changeCoins): void;
+
+    /**
+     * Met à jour le stock de pièces
+     * @param array<CoinCode, int> $newStock Nouveau stock par type de pièce
+     */
+    public function updateStock(array $newStock): void;
+
+    /**
+     * Calcule la meilleure combinaison de pièces pour rendre la monnaie
+     * Priorité aux pièces de plus grande valeur
+     * @return CoinCode[] Pièces à rendre, ou tableau vide si impossible
+     */
+    public function calculateOptimalChange(int $changeAmount, array $availableStock): array;
 }

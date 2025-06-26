@@ -31,21 +31,3 @@ Exécute les tests PHPUnit avec la commande suivante :
 Pour machine équipé (pas toutes) on veut paiement CB, lecteur attends un callback (pouvoir rembourser)
 Rendu de monnaie, si 1€ on rends 50ct
 Pièce multiple = paiement en pls fois. Max 5 pièces, si on mets +5 on rends tous.
-
-## Cas de test
-Paiement CB
-// D'abord choisir le café ou passer la carte et choisir le café ? reset après chaque café
-// Si le paiement CB passe pas ? on annule la commande
-// 
-ETANT DONNE une machine a café
-QUAND 
-ALORS 
-
-Rendu monnaie
-// Comment on gére le stock de pièce ? fake, stock de pièces (rembourse dans la limites des stocks)
-// On rends la monnaire en priorité avec les pièces de plus grande valeur ? oui
-// Si on a pas le stock de pièce on rends pas la monnaie ? du coup non
-
-Pièce multiple
-// On rends la monnaie ? (si 60cts ?) (on garde l'argent)
-// 

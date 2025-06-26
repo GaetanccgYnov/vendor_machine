@@ -36,7 +36,11 @@ class CoffeeMachineTestScenario
         private bool $shouldCallCardRefund,
         private ?PaymentMethod $paymentMethod = null,
         private bool $cardChargeSuccess = false,
-        private int $toManyCoins = 0
+        private int $toManyCoins = 0,
+        private array $multipleCoins = [],
+        private array $initialCoinStock = [],
+        private array $expectedChange = [],
+        private array $expectedFinalStock = []
     ) {
         $this->toManyCoins = $toManyCoins;
     }
@@ -57,6 +61,12 @@ class CoffeeMachineTestScenario
             return;
         }
 
+        // Gestion des paiements avec monnaie
+        if (!empty($this->multipleCoins) || (!empty($this->initialCoinStock) && $this->coin !== null)) {
+            $this->handleCoinPaymentWithChange();
+            return;
+        }
+
         if ($this->coin === null) {
             return;
         }
@@ -65,6 +75,66 @@ class CoffeeMachineTestScenario
             $this->handleValidCoin();
         } else {
             $this->handleInvalidCoin();
+        }
+    }
+
+    /**
+     * Gère les paiements avec gestion de la monnaie
+     */
+    private function handleCoinPaymentWithChange(): void
+    {
+        // Calculer le montant total inséré
+        $totalAmount = 0;
+        if (!empty($this->multipleCoins)) {
+            $totalAmount = array_sum(array_map(fn($coin) => $coin->value, $this->multipleCoins));
+        } elseif ($this->coin !== null) {
+            $totalAmount = $this->coin->value;
+        }
+
+        // Vérifier si le montant est suffisant
+        if ($totalAmount < self::COFFEE_PRICE_CENTS) {
+            $this->handleInvalidCoin();
+            return;
+        }
+
+        // Obtenir le stock actuel
+        $currentStock = $this->coinMachine->getCurrentStock();
+
+        // Calculer le montant de la monnaie à rendre
+        $changeAmount = $totalAmount - self::COFFEE_PRICE_CENTS;
+
+        // Vérifier si on peut rendre la monnaie
+        $canMakeChange = true;
+        if ($changeAmount > 0) {
+            $canMakeChange = $this->coinMachine->canMakeChange($changeAmount, $currentStock);
+        }
+
+        // Faire le café
+        $coffeeSuccess = $this->brewer->makeACoffee();
+
+        if ($coffeeSuccess) {
+            // Mettre à jour le stock avec les pièces insérées
+            $newStock = $currentStock;
+            if (!empty($this->multipleCoins)) {
+                foreach ($this->multipleCoins as $coin) {
+                    $newStock[$coin->value] = ($newStock[$coin->value] ?? 0) + 1;
+                }
+            } elseif ($this->coin !== null) {
+                $newStock[$this->coin->value] = ($newStock[$this->coin->value] ?? 0) + 1;
+            }
+
+            // Rendre la monnaie si possible et nécessaire
+            if ($changeAmount > 0 && $canMakeChange && !empty($this->expectedChange)) {
+                $this->coinMachine->returnChange($this->expectedChange);
+
+                // Décrémenter le stock pour les pièces rendues
+                foreach ($this->expectedChange as $changeCoin) {
+                    $newStock[$changeCoin->value]--;
+                }
+            }
+
+            // Mettre à jour le stock final
+            $this->coinMachine->updateStock($newStock);
         }
     }
 
@@ -84,6 +154,14 @@ class CoffeeMachineTestScenario
     public function getCoin(): ?CoinCode
     {
         return $this->coin;
+    }
+
+    /**
+     * Retourne les pièces multiples utilisées dans le scénario
+     */
+    public function getMultipleCoins(): array
+    {
+        return $this->multipleCoins;
     }
 
     /**

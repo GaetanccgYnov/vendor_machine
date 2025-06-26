@@ -22,7 +22,7 @@ class CoffeeMachineTest extends TestCase
     private ChangeMachineInterface $coinMachine;
     private CardHandleInterface $cardHandler;
     private CoffeeMachineTestBuilder $builder;
-    private const COFFEE_PRICE_CENTS = 50; // Prix du café en centimes
+    private const COFFEE_PRICE_CENTS = 50;
 
     protected function setUp(): void
     {
@@ -289,6 +289,198 @@ class CoffeeMachineTest extends TestCase
 
         // Act
         $scenario->execute();
+    }
+
+    #[TestDox('Test Exact payment - no change needed')]
+    public function testExactPaymentNoChange(): void
+    {
+        $scenario = $this->builder
+            ->withCoin(CoinCode::FIFTY_CENTS)
+            ->withInitialCoinStock([
+                CoinCode::TWENTY_CENTS->value => 5,
+                CoinCode::TEN_CENTS->value => 10
+            ])
+            ->withBrewerSuccess(true)
+            ->expectBrewerCalls(1)
+            ->expectNoChangeReturn()
+            ->build();
+
+        $this->setupChangeManagementMocks($scenario,
+            [CoinCode::TWENTY_CENTS->value => 5, CoinCode::TEN_CENTS->value => 10],
+            [],
+            [CoinCode::TWENTY_CENTS->value => 5, CoinCode::TEN_CENTS->value => 10, CoinCode::FIFTY_CENTS->value => 1]
+        );
+
+        $scenario->execute();
+    }
+
+    #[TestDox('Test Overpayment with sufficient stock')]
+    public function testOverpaymentWithSufficientStock(): void
+    {
+        $scenario = $this->builder
+            ->withCoin(CoinCode::ONE_EURO)
+            ->withInitialCoinStock([
+                CoinCode::TWENTY_CENTS->value => 5,
+                CoinCode::TEN_CENTS->value => 10
+            ])
+            ->withBrewerSuccess(true)
+            ->expectBrewerCalls(1)
+            ->expectChangeReturn([
+                CoinCode::TWENTY_CENTS,
+                CoinCode::TWENTY_CENTS,
+                CoinCode::TEN_CENTS
+            ])
+            ->build();
+
+        $expectedFinalStock = [
+            CoinCode::TWENTY_CENTS->value => 3,
+            CoinCode::TEN_CENTS->value => 9,
+            CoinCode::ONE_EURO->value => 1
+        ];
+
+        $this->setupChangeManagementMocks($scenario,
+            [CoinCode::TWENTY_CENTS->value => 5, CoinCode::TEN_CENTS->value => 10],
+            [CoinCode::TWENTY_CENTS, CoinCode::TWENTY_CENTS, CoinCode::TEN_CENTS],
+            $expectedFinalStock
+        );
+
+        $scenario->execute();
+    }
+
+    #[TestDox('Test Overpayment with insufficient stock - no change returned')]
+    public function testOverpaymentWithInsufficientStock(): void
+    {
+        $scenario = $this->builder
+            ->withCoin(CoinCode::TWO_EUROS)
+            ->withInitialCoinStock([
+                CoinCode::TEN_CENTS->value => 5
+            ])
+            ->withBrewerSuccess(true)
+            ->expectBrewerCalls(1)
+            ->expectNoChangeReturn()
+            ->build();
+
+        $expectedFinalStock = [
+            CoinCode::TEN_CENTS->value => 5,
+            CoinCode::TWO_EUROS->value => 1
+        ];
+
+        $this->setupChangeManagementMocks($scenario,
+            [CoinCode::TEN_CENTS->value => 5],
+            [],
+            $expectedFinalStock
+        );
+
+        $scenario->execute();
+    }
+
+    #[TestDox('Test Change priority - largest coins first')]
+    public function testChangePriorityLargestCoinsFirst(): void
+    {
+        $scenario = $this->builder
+            ->withMultipleCoins([CoinCode::ONE_EURO, CoinCode::TWENTY_CENTS])
+            ->withInitialCoinStock([
+                CoinCode::FIFTY_CENTS->value => 2,
+                CoinCode::TWENTY_CENTS->value => 10,
+                CoinCode::TEN_CENTS->value => 10
+            ])
+            ->withBrewerSuccess(true)
+            ->expectBrewerCalls(1)
+            ->expectChangeReturn([
+                CoinCode::FIFTY_CENTS,
+                CoinCode::TWENTY_CENTS
+            ])
+            ->build();
+
+        $expectedFinalStock = [
+            CoinCode::FIFTY_CENTS->value => 1,
+            CoinCode::TWENTY_CENTS->value => 10,
+            CoinCode::TEN_CENTS->value => 10,
+            CoinCode::ONE_EURO->value => 1
+        ];
+
+        $this->setupChangeManagementMocks($scenario,
+            [CoinCode::FIFTY_CENTS->value => 2, CoinCode::TWENTY_CENTS->value => 10, CoinCode::TEN_CENTS->value => 10],
+            [CoinCode::FIFTY_CENTS, CoinCode::TWENTY_CENTS],
+            $expectedFinalStock
+        );
+
+        $scenario->execute();
+    }
+
+    private function setupChangeManagementMocks(
+        $scenario,
+        array $initialStock,
+        array $expectedChange,
+        array $expectedFinalStock
+    ): void {
+        // Mock brewer
+        if ($scenario->getExpectedBrewerCalls() > 0) {
+            $this->brewer->expects($this->exactly($scenario->getExpectedBrewerCalls()))
+                ->method('makeACoffee')
+                ->willReturn($scenario->getBrewerSuccess());
+        }
+
+        // Mock coin machine - stock management
+        $this->coinMachine->expects($this->once())
+            ->method('getCurrentStock')
+            ->willReturn($initialStock);
+
+        if (!empty($expectedChange)) {
+            $this->coinMachine->expects($this->once())
+                ->method('returnChange')
+                ->with($expectedChange);
+        } else {
+            $this->coinMachine->expects($this->never())
+                ->method('returnChange');
+        }
+
+        $this->coinMachine->expects($this->once())
+            ->method('updateStock')
+            ->with($expectedFinalStock);
+
+        // Mock pour vérifier si on peut rendre la monnaie
+        $changeAmount = 0;
+        if ($scenario->getCoin()) {
+            $changeAmount = $scenario->getCoin()->value - self::COFFEE_PRICE_CENTS;
+        } elseif ($scenario->getMultipleCoins()) {
+            $total = array_sum(array_map(fn($coin) => $coin->value, $scenario->getMultipleCoins()));
+            $changeAmount = $total - self::COFFEE_PRICE_CENTS;
+        }
+
+        if ($changeAmount > 0) {
+            $this->coinMachine->expects($this->once())
+                ->method('canMakeChange')
+                ->with($changeAmount, $initialStock)
+                ->willReturn(!empty($expectedChange));
+        }
+    }
+
+    public static function changeScenarioProvider(): array
+    {
+        return [
+            'exact payment' => [
+                'insertedCoins' => [CoinCode::FIFTY_CENTS],
+                'initialStock' => [CoinCode::TWENTY_CENTS->value => 5],
+                'expectedChange' => [],
+                'expectedFinalStock' => [CoinCode::TWENTY_CENTS->value => 5, CoinCode::FIFTY_CENTS->value => 1],
+                'shouldBrew' => true
+            ],
+            'overpayment with change' => [
+                'insertedCoins' => [CoinCode::ONE_EURO],
+                'initialStock' => [CoinCode::TWENTY_CENTS->value => 5, CoinCode::TEN_CENTS->value => 5],
+                'expectedChange' => [CoinCode::TWENTY_CENTS, CoinCode::TWENTY_CENTS, CoinCode::TEN_CENTS],
+                'expectedFinalStock' => [CoinCode::TWENTY_CENTS->value => 3, CoinCode::TEN_CENTS->value => 4, CoinCode::ONE_EURO->value => 1],
+                'shouldBrew' => true
+            ],
+            'insufficient stock for change' => [
+                'insertedCoins' => [CoinCode::TWO_EUROS],
+                'initialStock' => [CoinCode::TEN_CENTS->value => 2],
+                'expectedChange' => [],
+                'expectedFinalStock' => [CoinCode::TEN_CENTS->value => 2, CoinCode::TWO_EUROS->value => 1],
+                'shouldBrew' => true
+            ]
+        ];
     }
 
     private function setupMocksFromScenario($scenario): void

@@ -35,6 +35,10 @@ class CoffeeMachineTestBuilder
     private ?PaymentMethod $paymentMethod = null;
     private bool $cardChargeSuccess = false;
     private int $toManyCoins = 0;
+    private array $multipleCoins = [];
+    private array $initialCoinStock = [];
+    private array $expectedChange = [];
+    private array $expectedFinalStock = [];
 
     public function __construct(
         BrewerInterface $brewer,
@@ -174,6 +178,53 @@ class CoffeeMachineTestBuilder
     }
 
     /**
+     * Définit plusieurs pièces à insérer
+     */
+    public function withMultipleCoins(array $coins): self
+    {
+        $this->multipleCoins = $coins;
+        $this->coin = null; // Reset single coin
+        $this->paymentMethod = null;
+        return $this;
+    }
+
+    /**
+     * Définit le stock initial de pièces dans la machine
+     */
+    public function withInitialCoinStock(array $stock): self
+    {
+        $this->initialCoinStock = $stock;
+        return $this;
+    }
+
+    /**
+     * Définit la monnaie attendue en retour
+     */
+    public function expectChangeReturn(array $change): self
+    {
+        $this->expectedChange = $change;
+        return $this;
+    }
+
+    /**
+     * Indique qu'aucune monnaie ne doit être rendue
+     */
+    public function expectNoChangeReturn(): self
+    {
+        $this->expectedChange = [];
+        return $this;
+    }
+
+    /**
+     * Définit l'état final attendu du stock de pièces
+     */
+    public function expectFinalCoinStock(array $finalStock): self
+    {
+        $this->expectedFinalStock = $finalStock;
+        return $this;
+    }
+
+    /**
      * Construit le scénario de test final
      */
     public function build(): CoffeeMachineTestScenario
@@ -194,7 +245,11 @@ class CoffeeMachineTestBuilder
             $this->shouldCallCardRefund,
             $this->paymentMethod,
             $this->cardChargeSuccess,
-            $this->toManyCoins
+            $this->toManyCoins,
+            $this->multipleCoins,
+            $this->initialCoinStock,
+            $this->expectedChange,
+            $this->expectedFinalStock
         );
     }
 
@@ -215,6 +270,10 @@ class CoffeeMachineTestBuilder
         $this->shouldCallCardRefund = false;
         $this->paymentMethod = null;
         $this->cardChargeSuccess = false;
+        $this->multipleCoins = [];
+        $this->initialCoinStock = [];
+        $this->expectedChange = [];
+        $this->expectedFinalStock = [];
 
         return $this;
     }
