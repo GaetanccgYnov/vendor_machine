@@ -35,8 +35,11 @@ class CoffeeMachineTestScenario
         private bool $shouldCallCardCharge,
         private bool $shouldCallCardRefund,
         private ?PaymentMethod $paymentMethod = null,
-        private bool $cardChargeSuccess = false
-    ) {}
+        private bool $cardChargeSuccess = false,
+        private int $toManyCoins = 0
+    ) {
+        $this->toManyCoins = $toManyCoins;
+    }
 
     /**
      * Exécute le scénario principal de test
@@ -48,8 +51,14 @@ class CoffeeMachineTestScenario
             return;
         }
 
+        if ($this->toManyCoins > 5) {
+            echo "Too many coins detected\n";
+            $this->handleTooManyCoins();
+            return;
+        }
+
         if ($this->coin === null) {
-            return; // Pas de pièce, pas d'action
+            return;
         }
 
         if ($this->isValidCoin()) {
@@ -75,6 +84,14 @@ class CoffeeMachineTestScenario
     public function getCoin(): ?CoinCode
     {
         return $this->coin;
+    }
+
+    /**
+     * Retourne le nombre de pièces insérées
+     */
+    public function getToManyCoins(): int
+    {
+        return $this->toManyCoins;
     }
 
     /**
@@ -203,6 +220,16 @@ class CoffeeMachineTestScenario
      * Gère le cas d'une pièce invalide
      */
     private function handleInvalidCoin(): void
+    {
+        if ($this->shouldCallCoinMachine) {
+            $this->coinMachine->flushStoredMoney();
+        }
+    }
+
+    /**
+     *  Gère le cas quand il y a trop de pièces insérées (> 5 pièces)
+     */
+    private function handleTooManyCoins(): void
     {
         if ($this->shouldCallCoinMachine) {
             $this->coinMachine->flushStoredMoney();
