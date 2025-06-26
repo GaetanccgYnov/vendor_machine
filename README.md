@@ -26,8 +26,3 @@ Exécute les tests PHPUnit avec la commande suivante :
 - `src/` : Code source PHP
 - `tests/` : Tests unitaires PHPUnit
 - `composer.json` : Dépendances du projet
-
-## Nouvelles fonctionnalitées
-Pour machine équipé (pas toutes) on veut paiement CB, lecteur attends un callback (pouvoir rembourser)
-Rendu de monnaie, si 1€ on rends 50ct
-Pièce multiple = paiement en pls fois. Max 5 pièces, si on mets +5 on rends tous.

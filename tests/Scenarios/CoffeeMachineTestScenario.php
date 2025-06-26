@@ -269,11 +269,9 @@ class CoffeeMachineTestScenario
         $chargeSuccess = $this->cardHandler->tryChargeAmount(self::COFFEE_PRICE_CENTS);
 
         if (!$chargeSuccess) {
-            // Prélèvement échoué, pas de café
             return;
         }
 
-        // Prélèvement réussi, tentative de café
         $coffeeSuccess = $this->brewer->makeACoffee();
 
         if (!$coffeeSuccess) {

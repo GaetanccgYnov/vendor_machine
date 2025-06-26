@@ -183,7 +183,7 @@ class CoffeeMachineTestBuilder
     public function withMultipleCoins(array $coins): self
     {
         $this->multipleCoins = $coins;
-        $this->coin = null; // Reset single coin
+        $this->coin = null;
         $this->paymentMethod = null;
         return $this;
     }

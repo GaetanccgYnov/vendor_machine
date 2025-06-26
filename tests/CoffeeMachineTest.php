@@ -36,12 +36,6 @@ class CoffeeMachineTest extends TestCase
         );
     }
 
-    protected function tearDown(): void
-    {
-        // Reset le builder pour éviter les effets de bord
-        $this->builder->reset();
-    }
-
     #[DataProvider('validCoinProvider')]
     #[TestDox('Test Brewer starts with valid coin')]
     public function testBrewerStartsWithValidCoin(CoinCode $coin): void
@@ -81,7 +75,7 @@ class CoffeeMachineTest extends TestCase
         // Configure mocks
         $this->setupMocksFromScenario($scenario);
 
-        // Assert - Vérifications métier
+        // Assert
         $this->assertThat($coin, $this->isInvalidCoin());
         $this->assertThat($coin, $this->shouldRefundMoney());
 
@@ -105,7 +99,7 @@ class CoffeeMachineTest extends TestCase
         // Configure mocks
         $this->setupMocksFromScenario($scenario);
 
-        // Assert - Vérifications métier
+        // Assert
         $this->assertThat($coin, $this->isValidCoin());
 
         // Act
@@ -211,6 +205,7 @@ class CoffeeMachineTest extends TestCase
         // Configure mocks
         $this->setupMocksFromScenario($failureScenario);
 
+        // Assert
         $this->assertThat($failureScenario->getCoin(), $this->isValidCoin());
 
         // Act
@@ -220,6 +215,7 @@ class CoffeeMachineTest extends TestCase
     #[TestDox('Test Multiple payment methods in sequence')]
     public function testMultiplePaymentMethodsInSequence(): void
     {
+        // Arrange
         $coinScenario = $this->builder
             ->withCoin(CoinCode::ONE_EURO)
             ->withBrewerSuccess(true)
@@ -228,12 +224,17 @@ class CoffeeMachineTest extends TestCase
             ->expectNoCardCalls()
             ->build();
 
+        // Configure mocks
         $this->setupMocksFromScenario($coinScenario);
+
+        // Act
         $coinScenario->execute();
 
+        // Reset builder for next scenario
         $this->builder->reset();
         $this->setUp();
 
+        // Card payment scenario
         $cardScenario = $this->builder
             ->withCardPayment(true)
             ->withBrewerSuccess(true)
@@ -243,16 +244,19 @@ class CoffeeMachineTest extends TestCase
             ->expectNoCardRefundCalls()
             ->build();
 
+        // Configure mocks for card scenario
         $this->setupMocksFromScenario($cardScenario);
+
+        // Act
         $cardScenario->execute();
     }
 
     #[TestDox('Test Edge case: Multiple scenarios in sequence')]
     public function testMultipleScenariosInSequence(): void
     {
-        // Test with valid coins
         $coins = [CoinCode::FIFTY_CENTS, CoinCode::ONE_EURO, CoinCode::TWO_EUROS];
 
+        // Arrange
         foreach ($coins as $coin) {
             $scenario = $this->builder
                 ->reset()
@@ -266,6 +270,7 @@ class CoffeeMachineTest extends TestCase
             // Configure mocks
             $this->setupMocksFromScenario($scenario);
 
+            // Assert
             $this->assertThat($coin, $this->isValidCoin());
 
             // Act
@@ -294,6 +299,7 @@ class CoffeeMachineTest extends TestCase
     #[TestDox('Test Exact payment - no change needed')]
     public function testExactPaymentNoChange(): void
     {
+        // Arrange
         $scenario = $this->builder
             ->withCoin(CoinCode::FIFTY_CENTS)
             ->withInitialCoinStock([
@@ -305,18 +311,21 @@ class CoffeeMachineTest extends TestCase
             ->expectNoChangeReturn()
             ->build();
 
+        // Configure mocks
         $this->setupChangeManagementMocks($scenario,
             [CoinCode::TWENTY_CENTS->value => 5, CoinCode::TEN_CENTS->value => 10],
             [],
             [CoinCode::TWENTY_CENTS->value => 5, CoinCode::TEN_CENTS->value => 10, CoinCode::FIFTY_CENTS->value => 1]
         );
 
+        // Act
         $scenario->execute();
     }
 
     #[TestDox('Test Overpayment with sufficient stock')]
     public function testOverpaymentWithSufficientStock(): void
     {
+        // Arrange
         $scenario = $this->builder
             ->withCoin(CoinCode::ONE_EURO)
             ->withInitialCoinStock([
@@ -332,6 +341,7 @@ class CoffeeMachineTest extends TestCase
             ])
             ->build();
 
+        // Configure mocks
         $expectedFinalStock = [
             CoinCode::TWENTY_CENTS->value => 3,
             CoinCode::TEN_CENTS->value => 9,
@@ -344,12 +354,14 @@ class CoffeeMachineTest extends TestCase
             $expectedFinalStock
         );
 
+        // Act
         $scenario->execute();
     }
 
     #[TestDox('Test Overpayment with insufficient stock - no change returned')]
     public function testOverpaymentWithInsufficientStock(): void
     {
+        // Arrange
         $scenario = $this->builder
             ->withCoin(CoinCode::TWO_EUROS)
             ->withInitialCoinStock([
@@ -360,6 +372,7 @@ class CoffeeMachineTest extends TestCase
             ->expectNoChangeReturn()
             ->build();
 
+        // Configure mocks
         $expectedFinalStock = [
             CoinCode::TEN_CENTS->value => 5,
             CoinCode::TWO_EUROS->value => 1
@@ -371,12 +384,14 @@ class CoffeeMachineTest extends TestCase
             $expectedFinalStock
         );
 
+        // Act
         $scenario->execute();
     }
 
     #[TestDox('Test Change priority - largest coins first')]
     public function testChangePriorityLargestCoinsFirst(): void
     {
+        // Arrange
         $scenario = $this->builder
             ->withMultipleCoins([CoinCode::ONE_EURO, CoinCode::TWENTY_CENTS])
             ->withInitialCoinStock([
@@ -392,6 +407,7 @@ class CoffeeMachineTest extends TestCase
             ])
             ->build();
 
+        // Configure mocks
         $expectedFinalStock = [
             CoinCode::FIFTY_CENTS->value => 1,
             CoinCode::TWENTY_CENTS->value => 10,
@@ -405,6 +421,7 @@ class CoffeeMachineTest extends TestCase
             $expectedFinalStock
         );
 
+        // Act
         $scenario->execute();
     }
 
@@ -439,7 +456,7 @@ class CoffeeMachineTest extends TestCase
             ->method('updateStock')
             ->with($expectedFinalStock);
 
-        // Mock pour vérifier si on peut rendre la monnaie
+        // Mock to check if change can be made
         $changeAmount = 0;
         if ($scenario->getCoin()) {
             $changeAmount = $scenario->getCoin()->value - self::COFFEE_PRICE_CENTS;
@@ -453,6 +470,9 @@ class CoffeeMachineTest extends TestCase
                 ->method('canMakeChange')
                 ->with($changeAmount, $initialStock)
                 ->willReturn(!empty($expectedChange));
+        } else {
+            $this->coinMachine->expects($this->never())
+                ->method('canMakeChange');
         }
     }
 
