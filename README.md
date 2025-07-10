@@ -17,8 +17,14 @@ composer install
 
 Exécute les tests PHPUnit avec la commande suivante :
 
+* Pour la version de cours, avant retours du professeur :
 ```bash
 ./vendor/bin/phpunit --testdox tests/CoffeeMachineTest.php
+```
+
+* Pour la version après retours du professeur :
+```bash
+./vendor/bin/phpunit --testdox .\tests\Acceptance\
 ```
 
 ## Structure du projet
